@@ -1,2 +1,6 @@
 djangorestframework
 channels-redis
+@mui/material @emotion/react @emotion/styled
+tailwind
+axios
+react-router
