@@ -1,45 +1,101 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState({
+    email: '',
+    password: '',
+    non_field_errors: ''
+  });
+  const [loading, setLoading] = useState(false); // loading state
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    console.log('Email:', email, 'Password:', password);
+    setErrors({ email: '', password: '', non_field_errors: '' });
+    setLoading(true); // start loading
+
+    const loginData = {
+      email: email,
+      password: password
+    };
+
+    axios.post('http://localhost:8000/login/', loginData, {
+      headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => {
+      console.log('Login successful:', response.data);
+      localStorage.setItem('token', response.data.token);
+      // redirect or other actions after login
+    })
+    .catch(error => {
+      if (error.response && error.response.data) {
+        const data = error.response.data;
+        setErrors({
+          email: data.email ? data.email[0] : '',
+          password: data.password ? data.password[0] : '',
+          non_field_errors: data.non_field_errors ? data.non_field_errors[0] : ''
+        });
+      } else {
+        console.error('Error logging in:', error);
+      }
+    })
+    .finally(() => {
+      setLoading(false); // stop loading
+    });
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-800">
       <form
         onSubmit={handleSubmit}
-        className="dark:bg-gray-900 p-8 rounded-lg shadow-md w-100 flex flex-col gap-4"
+        className="bg-gray-900 p-8 rounded-lg shadow-md w-full max-w-sm flex flex-col gap-4"
       >
         <h1 className="text-white text-2xl font-semibold text-center mb-4">Login</h1>
+
+        {errors.non_field_errors && (
+          <p className="text-red-500 text-sm mb-2 text-center">{errors.non_field_errors}</p>
+        )}
 
         <input
           type="email"
           placeholder="Email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setErrors((prev) => ({ ...prev, email: '', non_field_errors: '' }));
+          }}
           required
-          className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-white"
+          className="text-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 placeholder-gray-400"
         />
+        {errors.email && (
+          <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+        )}
 
         <input
           type="password"
           placeholder="Password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setErrors((prev) => ({ ...prev, password: '', non_field_errors: '' }));
+          }}
           required
-          className="text-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-white border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-800 placeholder-gray-400"
         />
+        {errors.password && (
+          <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+        )}
 
         <button
           type="submit"
-          className="bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 transition-colors"
+          disabled={loading} // disable button while loading
+          className={`bg-blue-500 text-white py-2 rounded-md mt-2 transition-colors hover:bg-blue-600 flex justify-center items-center ${
+            loading ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
-          Login
+          {loading ? 'Logging in...' : 'Login'}
         </button>
       </form>
     </div>
