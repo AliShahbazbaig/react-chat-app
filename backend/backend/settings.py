@@ -40,7 +40,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'channels',
     'accounts',
-    
 ]
 
 MIDDLEWARE = [
@@ -54,6 +53,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'backend.urls'
+
+AUTH_USER_MODEL = 'accounts.User'
 
 TEMPLATES = [
     {
@@ -69,6 +70,12 @@ TEMPLATES = [
         },
     },
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'accounts.tokenauthentication.JWTAuthentication',
+    )
+}
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
