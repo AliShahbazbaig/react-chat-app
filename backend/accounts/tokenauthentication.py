@@ -35,7 +35,7 @@ class JWTAuthentication(BaseAuthentication):
             raise ExpiredSignatureError("Token has expired")
         
     
-    def authentication(self, request):
+    def authenticate(self, request):
         token = self.extract_token(request=request)
         if not token:
             return None
@@ -46,7 +46,7 @@ class JWTAuthentication(BaseAuthentication):
 
             user_id = payload['id']
             user = User.objects.get(id=user_id)
-            return (user)
+            return (user, token)
         except (InvalidTokenError, ExpiredSignatureError , User.DoesNotExist):
             raise AuthenticationFailed("Invalid or expired token")
         
