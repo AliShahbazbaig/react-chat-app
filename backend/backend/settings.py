@@ -38,9 +38,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'channels',
+    'channels', # for channels
     'accounts',
     "corsheaders",
+    'chats',
+    'daphne',
 ]
 
 MIDDLEWARE = [
@@ -85,8 +87,18 @@ REST_FRAMEWORK = {
     )
 }
 
-WSGI_APPLICATION = 'backend.wsgi.application'
+# WSGI_APPLICATION = 'backend.wsgi.application'
 
+ASGI_APPLICATION ="backend.asgi.application"
+
+CHANNEL_LAYER={
+    "default":{
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG":{
+            "hosts":[("127.0.0.1", 6379)], # Redis server address and port( default is 6379)
+        },
+    }
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
