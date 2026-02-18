@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Navigate } from 'react-router';
 import axios from 'axios';
 
 function LoginForm() {
@@ -26,8 +27,8 @@ function LoginForm() {
     })
     .then(response => {
       console.log('Login successful:', response.data);
-      localStorage.setItem('token', response.data.token);
-      // redirect or other actions after login
+      document.cookie = `token=${response.data.token}; path=/; max-age=86400; SameSite=Lax`
+      return <Navigate to="/chats" />;
     })
     .catch(error => {
       if (error.response && error.response.data) {

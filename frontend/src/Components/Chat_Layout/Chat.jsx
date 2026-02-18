@@ -5,8 +5,7 @@ import SideBar from "../Layout_Manager/SideBar";
 
 function Chat() {
   return (
-    <div className="flex h-screen bg-gray-100">
-      <SideBar />
+
       <div className="flex flex-col flex-1">
 
         <div className="h-16 bg-white border-b flex items-center px-4">
@@ -26,7 +25,6 @@ function Chat() {
         <Message_Input />
 
       </div>
-    </div>
   );
 }
 
