@@ -40,9 +40,12 @@ INSTALLED_APPS = [
     'rest_framework',
     'channels',
     'accounts',
+    "corsheaders",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware", 
+    "django.middleware.common.CommonMiddleware",
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -55,6 +58,11 @@ MIDDLEWARE = [
 ROOT_URLCONF = 'backend.urls'
 
 AUTH_USER_MODEL = 'accounts.User'
+
+CORS_ALLOW_ALL_ORIGINS = True
+
+CORS_ALLOW_CREDENTIALS = True
+
 
 TEMPLATES = [
     {
