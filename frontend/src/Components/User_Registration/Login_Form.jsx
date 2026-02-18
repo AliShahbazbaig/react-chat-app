@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Navigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import axios from 'axios';
 
 function LoginForm() {
@@ -11,6 +11,7 @@ function LoginForm() {
     non_field_errors: ''
   });
   const [loading, setLoading] = useState(false); // loading state
+  const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -22,13 +23,13 @@ function LoginForm() {
       password: password
     };
 
-    axios.post('http://localhost:8000/login/', loginData, {
+    axios.post('http://localhost:8000/api/login/', loginData, {
       headers: { 'Content-Type': 'application/json' }
     })
     .then(response => {
       console.log('Login successful:', response.data);
-      document.cookie = `token=${response.data.token}; path=/; max-age=86400; SameSite=Lax`
-      return <Navigate to="/chats" />;
+      document.cookie = `token=${response.data.token}; path=/`
+      navigate("/chats");
     })
     .catch(error => {
       if (error.response && error.response.data) {

@@ -29,7 +29,7 @@ function Message_Input() {
   };
 
   return (
-    <div className="w-full p-3 border-t bg-gray-100 dark:bg-gray-900">
+    <div className="fixed bottom-0 left-0 right-0 w-full p-3 border-t bg-gray-100 dark:bg-gray-900">
       <div className="flex gap-2 bg-white dark:bg-gray-800 rounded-full px-4 py-2 shadow-sm">
 
         {/* Auto-growing textarea */}

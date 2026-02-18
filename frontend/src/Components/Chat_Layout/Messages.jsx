@@ -1,23 +1,17 @@
 import React from "react";
 
-function Message({ text, send }) {
+function Messages({ text, send }) {
   return (
     <div
-      className={`flex w-full mb-2 ${
-        send ? "justify-end" : "justify-start"
-      }`}
-    >
-      <div
-        className={`px-4 py-2 rounded-2xl max-w-xs text-sm ${
-          send
-            ? "bg-teal-600 text-white rounded-br-none"
-            : "bg-gray-200 text-gray-900 rounded-bl-none"
+      className={`w-fit px-4 py-2 my-2 rounded-2xl text-sm break-words shadow-sm
+        ${send 
+          ? "bg-blue-500 text-white ml-auto rounded-tr-none" 
+          : "bg-gray-200 text-gray-800 mr-auto rounded-tl-none"
         }`}
-      >
-        {text}
-      </div>
+    >
+      <p className="m-0">{text}</p>
     </div>
   );
 }
 
-export default Message;
+export default Messages;
