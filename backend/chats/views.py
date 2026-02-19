@@ -34,32 +34,6 @@ def get_user_list(request):
     serializer = UserGetSerializer(users, many=True)
     return Response(serializer.data)
 
-# --------------------------------------------------
-# Get All Users WITH CONVERSATION
-# --------------------------------------------------
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def my_conversation_users(request):
-    user=request.user
-    conversations= Conversation.objects.filter(
-        conversation_type='direct'
-    ).filter(
-        user1=user
-    ) | Conversation.objects.filter(
-        conversation_type='direct',
-        user2=user
-    )
-    users_ids=set()
-    for conv in conversations:
-        if conv.user1==user:
-            users_ids.add(conv.user2.id)
-        else:
-            users_ids.add(conv.user1.id)
-
-    users= User.objects.filter(id__in=users_ids)
-    serializer= UserGetSerializer(users,many=True)
-
-    return Response(serializer.data)
 
 
 # --------------------------------------------------
@@ -81,6 +55,33 @@ def search_users(request):
     ).exclude(id=request.user.id)[:10]
 
     serializer = UserGetSerializer(users, many=True)
+    return Response(serializer.data)
+
+
+# --------------------------------------------------
+# Direct Chat Views
+# --------------------------------------------------
+
+# --------------------------------------------------
+# Get All Users WITH CONVERSATION
+# --------------------------------------------------
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_conversation_users(request):
+    user=request.user
+    conversations = Conversation.objects.filter(
+        conversation_type='direct'
+    ).filter(Q(user1=user) | Q(user2=user))
+    users_ids=set()
+    for conv in conversations:
+        if conv.user1==user:
+            users_ids.add(conv.user2.id)
+        else:
+            users_ids.add(conv.user1.id)
+
+    users= User.objects.filter(id__in=users_ids)
+    serializer= UserGetSerializer(users,many=True)
+
     return Response(serializer.data)
 
 
@@ -160,34 +161,22 @@ def get_or_create_conversation(request, user_id):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_conversation_messages(request, conversation_id):
+def get_conversation_messages_direct(request, conversation_id):
+
     try:
         conversation = Conversation.objects.get(id=conversation_id)
     except Conversation.DoesNotExist:
-        return Response(
-            {"error": "Conversation not found"},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({"error": "Conversation not found"}, status=404)
 
-    # Check if user is part of this conversation
-    if request.user not in [conversation.user1, conversation.user2]:
-        return Response(
-            {"error": "You don't have access to this conversation"},
-            status=status.HTTP_403_FORBIDDEN
-        )
+    # Access check
+    if conversation.conversation_type == 'direct':
+        if request.user not in [conversation.user1, conversation.user2]:
+            return Response({"error": "Permission denied"}, status=403)
+    else:
+        if request.user not in conversation.participants.all():
+            return Response({"error": "Not a group member"}, status=403)
 
-    # Get messages
-    messages = messages = conversation.messages.order_by("timestamp")
-    
-    # Mark messages as read
-    unread_messages = messages.filter(
-        sender=conversation.get_other_user(request.user),
-        is_read=False
-    )
-    
-    if unread_messages.exists():
-        unread_messages.update(is_read=True)
-        conversation.reset_unread_for_user(request.user)
+    messages = conversation.messages.order_by("timestamp")
 
     serializer = MessageSerializer(messages, many=True)
     return Response(serializer.data)
@@ -200,8 +189,7 @@ def get_conversation_messages(request, conversation_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @transaction.atomic
-def send_message(request, user_id):
-    """Send a message to another user"""
+def send_message_direct(request, user_id):
     try:
         receiver = User.objects.get(id=user_id)
     except User.DoesNotExist:
@@ -339,14 +327,12 @@ def delete_message(request, message_id):
 
 
 # --------------------------------------------------
-# Group s
+# Group Create
 # --------------------------------------------------
-# Add these to your existing views.py
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_group(request):
-    """Create a new group chat"""
     name = request.data.get('name', '').strip()
     participant_ids = request.data.get('participants', [])
 
@@ -384,10 +370,14 @@ def create_group(request):
     serializer = ConversationSerializer(conversation, context={'request': request})
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+
+# --------------------------------------------------
+# Add users to Group 
+# --------------------------------------------------
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_group_participants(request, conversation_id):
-    """Add users to a group chat"""
     try:
         conversation = Conversation.objects.get(
             id=conversation_id, 
@@ -410,6 +400,11 @@ def add_group_participants(request, conversation_id):
     
     serializer = ConversationSerializer(conversation, context={'request': request})
     return Response(serializer.data)
+
+
+# --------------------------------------------------
+# Remove Group participants
+# --------------------------------------------------
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -434,11 +429,16 @@ def remove_group_participant(request, conversation_id, user_id):
     except User.DoesNotExist:
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
     
+
+# --------------------------------------------------
+# Delete Group
+# --------------------------------------------------
+
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
-def delete_group(request,conversaton_id):
+def delete_group(request,conversation_id):
     try:
-        group= Conversation.objects.get(id=conversaton_id)
+        group= Conversation.objects.get(id=conversation_id)
     except Conversation.DoesNotExist:
         return Response({"error":"Group not found"}, status=status.HTTP_404_NOT_FOUND)
     
@@ -449,14 +449,134 @@ def delete_group(request,conversaton_id):
     return Response({"message":"Group Has been deleted"},status=status.HTTP_200_OK)
 
 
+# --------------------------------------------------
+# Get User's Groups
+# --------------------------------------------------
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_groups(request):
-    user=request.user
-    groups=Conversation.objects.filter(
+    groups = Conversation.objects.filter(
         conversation_type='group',
-        participants=user
-    ).order_by('-created_at')
+        participants=request.user
+    ).order_by('-last_message_time')
 
-    serializer=ConversationSerializer(groups,many=True)
+    data = []
+
+    for group in groups:
+
+        unread = group.get_group_unread_count(request.user)
+
+        data.append({
+            "conversation_id": group.id,
+            "name": group.name,
+            "last_message": group.last_message,
+            "last_message_time": group.last_message_time,
+            "unread_count": unread
+        })
+
+    return Response(data)
+
+# --------------------------------------------------
+# Send Group Message
+# --------------------------------------------------
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+@transaction.atomic
+def send_group_message(request,conversation_id):
+    try:
+        conversation=Conversation.objects.filter(
+            id=conversation_id,
+            conversation_type='group'
+        )
+    except Conversation.DoesNotExist:
+        return Response({"error":"Group not Found"},status=404)
+    
+    if request.user not in conversation.participants.all():
+        return Response({"error":"Not a group member"},status=403)
+    
+    text = request.data.get("message","").strip()
+
+    if not text:
+        return Response({"error":"Message cant be empty"},status=400)
+
+    message= Message.objects.create(
+        conversation=conversation,
+        sender=request.user,
+        text=text
+    )
+
+    conversation.last_message=text
+    conversation.last_message_time=message.timestamp
+    conversation.last_message_sender=request.user
+
+    conversation.increment_group_unread_for_all(request.user)
+    conversation.save()
+
+    serializer=MessageSerializer(message)
+    return Response(serializer.data,status=201)
+
+# --------------------------------------------------
+# Get All Message in group
+# --------------------------------------------------
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_group_message(request,conversation_id):
+    try:
+        conversation=Conversation.objects.filter(
+            id=conversation_id
+            conversation_type='group'
+        )
+    except Conversation.DoesNotExist:
+        return Response({"error":"Group Not Found"},status=404)
+    
+    if request.user not in conversation.participants.all():
+        return Response({"error":"Not a group member"},status=403)
+    
+    messages=conversation.messages.order_by('timestamp')
+
+    serializer=MessageSerializer(messages,many=True)
     return Response(serializer.data)
+
+# --------------------------------------------------
+#  Delete Message in a group
+# --------------------------------------------------
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_group_message(request,message_id):
+    try:
+        message=Message.objects.get(
+            id= message_id,
+            sender=request.user,
+            conversation__conversation_type='group'
+        )
+    except Message.DoesNotExist:
+        return Response({"error":"Message not found or permision denied"},status=404)
+
+    message.delete()    
+
+    return Response({"message":"Message deleted"},status=200)
+
+
+# --------------------------------------------------
+# Mark as read in group
+# --------------------------------------------------
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_group_read(request,conversation_id):
+    try:
+        conversation=Conversation.objects.get(
+            id=conversation_id,
+            conversation_type='group'
+        )
+    except Conversation.DoesNotExist:
+        return Response({"error":"Group Not found"},status=404)
+    
+    if request.user not in conversation.participants.all():
+        return Response({"error": "Not a group member"}, status=403)
+
+    conversation.reset_group_unread_for_user(request.user)
+
+    return Response({"message":"marked as read"})
