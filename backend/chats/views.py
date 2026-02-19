@@ -525,7 +525,7 @@ def send_group_message(request,conversation_id):
 def get_group_message(request,conversation_id):
     try:
         conversation=Conversation.objects.filter(
-            id=conversation_id
+            id=conversation_id,
             conversation_type='group'
         )
     except Conversation.DoesNotExist:
