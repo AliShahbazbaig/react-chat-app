@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from django.shortcuts import get_object_or_404
 
 from .models import Conversation, Message
 from .serializers import (
@@ -484,13 +485,12 @@ def user_groups(request):
 @permission_classes([IsAuthenticated])
 @transaction.atomic
 def send_group_message(request,conversation_id):
-    try:
-        conversation=Conversation.objects.filter(
-            id=conversation_id,
-            conversation_type='group'
-        )
-    except Conversation.DoesNotExist:
-        return Response({"error":"Group not Found"},status=404)
+        
+    conversation = get_object_or_404(
+        Conversation,
+        id=conversation_id,
+        conversation_type='group'
+    )
     
     if request.user not in conversation.participants.all():
         return Response({"error":"Not a group member"},status=403)
@@ -523,14 +523,11 @@ def send_group_message(request,conversation_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_group_message(request,conversation_id):
-    try:
-        conversation=Conversation.objects.filter(
-            id=conversation_id,
-            conversation_type='group'
-        )
-    except Conversation.DoesNotExist:
-        return Response({"error":"Group Not Found"},status=404)
-    
+    conversation = get_object_or_404(
+        Conversation,
+        id=conversation_id,
+        conversation_type='group'
+    )
     if request.user not in conversation.participants.all():
         return Response({"error":"Not a group member"},status=403)
     
