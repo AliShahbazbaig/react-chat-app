@@ -155,6 +155,8 @@ class Message(models.Model):
     sender = models.ForeignKey(User, on_delete=models.CASCADE)
     text = models.TextField()
     is_read = models.BooleanField(default=False)
+    # Tracks which users have read this message (useful for per-user read receipts in groups)
+    read_by = models.ManyToManyField(User, related_name='read_messages', blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -162,6 +164,14 @@ class Message(models.Model):
         indexes = [
             models.Index(fields=['conversation', '-timestamp']),
         ]
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        self.conversation.last_message = self.text
+        self.conversation.last_message_time = self.timestamp
+        self.conversation.last_message_sender = self.sender
+        self.conversation.save()
 
     def __str__(self):
         return f"{self.sender.email}: {self.text[:50]}"

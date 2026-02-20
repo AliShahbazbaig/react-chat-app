@@ -3,7 +3,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth import get_user_model
-from .models import Conversation, Message
+from .models import Conversation, Message, PersonalMessage
 
 User = get_user_model()
 
@@ -58,15 +58,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
             # Get sender info
             sender_name = await self.get_sender_name()
 
+            # message content may be in .text (Message) or .message (PersonalMessage)
+            out_message = getattr(message_obj, 'text', None) or getattr(message_obj, 'message', '')
+            out_timestamp = getattr(message_obj, 'timestamp', None)
+
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     "type": "chat_message",
                     "message_id": message_obj.id,
-                    "message": message_obj.text,
+                    "message": out_message,
                     "sender_id": self.user.id,
                     "sender_name": sender_name,
-                    "timestamp": str(message_obj.timestamp),
+                    "timestamp": str(out_timestamp),
                     "conversation_id": self.conversation_id
                 }
             )
@@ -149,8 +153,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def is_user_allowed(self):
         try:
             conversation = Conversation.objects.get(id=self.conversation_id)
-            # Check if user is part of this direct conversation
-            return self.user in [conversation.user1, conversation.user2]
+            # Direct conversation: user1 or user2
+            if conversation.conversation_type == 'direct':
+                return self.user in [conversation.user1, conversation.user2]
+            # Group conversation: check participants
+            if conversation.conversation_type == 'group':
+                return conversation.participants.filter(id=self.user.id).exists()
+            return False
         except Conversation.DoesNotExist:
             return False
 
@@ -158,31 +167,69 @@ class ChatConsumer(AsyncWebsocketConsumer):
     def save_message(self, message_text):
         conversation = Conversation.objects.get(id=self.conversation_id)
 
+        # For direct conversations, use PersonalMessage model
+        if conversation.conversation_type == 'direct':
+            # determine receiver
+            receiver = conversation.user2 if self.user == conversation.user1 else conversation.user1
+            message = PersonalMessage.objects.create(
+                sender=self.user,
+                receiver=receiver,
+                message=message_text
+            )
+
+            # Update conversation metadata and unread counts
+            conversation.last_message = message_text
+            conversation.last_message_time = message.timestamp
+            conversation.last_message_sender = self.user
+            conversation.increment_unread_for_receiver(self.user)
+            conversation.save()
+            return message
+
+        # Group message
         message = Message.objects.create(
             conversation=conversation,
             sender=self.user,
             text=message_text
         )
 
-        # Update conversation metadata
+        # Update conversation metadata and unread counts for group
         conversation.last_message = message_text
         conversation.last_message_time = message.timestamp
         conversation.last_message_sender = self.user
+        conversation.increment_group_unread_for_all(self.user)
         conversation.save()
 
         return message
 
     @sync_to_async
     def mark_messages_read(self, message_ids):
-        # Mark messages as read by this user
-        messages = Message.objects.filter(
-            id__in=message_ids,
-            conversation_id=self.conversation_id
-        ).exclude(sender=self.user)
-        
+        # Mark messages as read for the appropriate model depending on conversation type
+        conversation = Conversation.objects.get(id=self.conversation_id)
+
+        if conversation.conversation_type == 'direct':
+            # Direct messages are PersonalMessage instances
+            messages = PersonalMessage.objects.filter(
+                id__in=message_ids,
+                receiver=self.user
+            )
+            updated = messages.exclude(is_read=True).update(is_read=True)
+
+            # Reset unread count for this user
+            if self.user == conversation.user1:
+                conversation.unread_count_user1 = 0
+            elif self.user == conversation.user2:
+                conversation.unread_count_user2 = 0
+            conversation.save()
+            return updated
+
+        # Group messages: add to read_by M2M and set is_read for backward compatibility
+        messages = Message.objects.filter(id__in=message_ids, conversation=conversation).exclude(sender=self.user)
         for message in messages:
             message.read_by.add(self.user)
-            # Also set is_read=True for backward compatibility
             if not message.is_read:
                 message.is_read = True
                 message.save()
+
+        # Reset group unread for this participant
+        conversation.reset_group_unread_for_user(self.user)
+        return messages.count()

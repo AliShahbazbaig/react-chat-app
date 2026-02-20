@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-function Message_Input({ otherUserId, onMessageSent }) {
-    console.log("Message_Input received otherUserId:", otherUserId);
+function Message_Input({ conversation_id, onMessageSent }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -17,7 +16,7 @@ function Message_Input({ otherUserId, onMessageSent }) {
 
     try {
       const res = await axios.post(
-        `http://127.0.0.1:8000/api/messages/${otherUserId}/send/`,
+        `http://127.0.0.1:8000/api/groups/${conversation_id}/send/`,
         {
           message: text,
         },

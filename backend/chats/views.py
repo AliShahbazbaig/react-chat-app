@@ -6,12 +6,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from rest_framework.pagination import PageNumberPagination
 
-from .models import Conversation, Message
+from .models import Conversation, Message, PersonalMessage
 from .serializers import (
     UserGetSerializer,
     MessageSerializer,
     ConversationSerializer,
+    ConversationListSerializer
+    ,PersonalMessageSerializer
 )
 
 User = get_user_model()
@@ -32,8 +35,13 @@ def get_current_user(request):
 @permission_classes([IsAuthenticated])
 def get_user_list(request):
     users = User.objects.exclude(id=request.user.id)
-    serializer = UserGetSerializer(users, many=True)
-    return Response(serializer.data)
+
+    paginator =PageNumberPagination()
+    paginator.page_size=10
+
+    result_page= paginator.paginate_queryset(users,request)
+    serializer = UserGetSerializer(result_page, many=True)
+    return paginator.get_paginated_response(serializer.data)
 
 
 
@@ -72,16 +80,13 @@ def my_conversation_users(request):
     user=request.user
     conversations = Conversation.objects.filter(
         conversation_type='direct'
-    ).filter(Q(user1=user) | Q(user2=user))
-    users_ids=set()
-    for conv in conversations:
-        if conv.user1==user:
-            users_ids.add(conv.user2.id)
-        else:
-            users_ids.add(conv.user1.id)
+    ).filter(Q(user1=user) | Q(user2=user)).select_related(
+        'user1','user2',"last_message_sender"
+    ).order_by('-last_message_time')
 
-    users= User.objects.filter(id__in=users_ids)
-    serializer= UserGetSerializer(users,many=True)
+    serializer= ConversationListSerializer(conversations,many=True,context={
+        'request':request
+    })
 
     return Response(serializer.data)
 
@@ -148,12 +153,12 @@ def get_or_create_conversation(request, user_id):
     # Use the model method to get or create
     conversation, created = Conversation.get_or_create_direct(request.user, other_user)
 
-    serializer = ConversationSerializer(
-        conversation,
-        context={'request': request}
-    )
 
-    return Response(serializer.data)
+    return Response({
+        "conversation_id": conversation.id,
+        "created": created,
+        }
+    )
 
 
 # --------------------------------------------------
@@ -170,16 +175,20 @@ def get_conversation_messages_direct(request, conversation_id):
         return Response({"error": "Conversation not found"}, status=404)
 
     # Access check
-    if conversation.conversation_type == 'direct':
-        if request.user not in [conversation.user1, conversation.user2]:
-            return Response({"error": "Permission denied"}, status=403)
-    else:
-        if request.user not in conversation.participants.all():
-            return Response({"error": "Not a group member"}, status=403)
+    if conversation.conversation_type != 'direct':
+        return Response({"error": "Not a direct conversation"}, status=400)
 
-    messages = conversation.messages.order_by("timestamp")
+    if request.user not in [conversation.user1, conversation.user2]:
+        return Response({"error": "Permission denied"}, status=403)
 
-    serializer = MessageSerializer(messages, many=True)
+
+    # For direct conversations we store messages in PersonalMessage
+    messages = PersonalMessage.objects.filter(
+        (Q(sender=conversation.user1) & Q(receiver=conversation.user2)) |
+        (Q(sender=conversation.user2) & Q(receiver=conversation.user1))
+    ).order_by('timestamp')
+
+    serializer = PersonalMessageSerializer(messages, many=True)
     return Response(serializer.data)
 
 
@@ -213,24 +222,24 @@ def send_message_direct(request, user_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Get or create conversation
+    # Get or create conversation (keeps conversation metadata)
     conversation, _ = Conversation.get_or_create_direct(request.user, receiver)
 
-    # Create message
-    message = Message.objects.create(
-        conversation=conversation,
+    # Create personal (direct) message
+    message = PersonalMessage.objects.create(
         sender=request.user,
-        text=message_text
+        receiver=receiver,
+        message=message_text
     )
 
-    # Update conversation metadata
+    # Update conversation metadata to reflect last message
     conversation.last_message = message_text
     conversation.last_message_time = message.timestamp
     conversation.last_message_sender = request.user
     conversation.increment_unread_for_receiver(request.user)
     conversation.save()
 
-    serializer = MessageSerializer(message)
+    serializer = PersonalMessageSerializer(message)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
@@ -262,8 +271,10 @@ def mark_conversation_read(request, conversation_id):
         else conversation.user1
     )
 
-    updated = conversation.messages.filter(
+    # Mark PersonalMessage instances between the two users as read
+    updated = PersonalMessage.objects.filter(
         sender=other_user,
+        receiver=request.user,
         is_read=False
     ).update(is_read=True)
 
@@ -307,23 +318,16 @@ def unread_count(request):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_message(request, message_id):
-
     try:
-        message = Message.objects.get(
+        message = PersonalMessage.objects.get(
             id=message_id,
             sender=request.user
         )
-    except Message.DoesNotExist:
-        return Response(
-            {"error": "Message not found or permission denied"},
-            status=status.HTTP_404_NOT_FOUND
-        )
+    except PersonalMessage.DoesNotExist:
+        return Response({"error": "Message not found or permission denied"}, status=status.HTTP_404_NOT_FOUND)
 
     message.delete()
-    return Response(
-        {"message": "Message deleted"},
-        status=status.HTTP_200_OK
-    )
+    return Response({"message": "Message deleted"}, status=status.HTTP_200_OK)
 
 
 
