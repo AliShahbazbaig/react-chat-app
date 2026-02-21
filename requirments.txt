@@ -5,3 +5,4 @@ axios
 react-router
 PyJWT
 django-cors-headers
+daphne

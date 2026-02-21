@@ -5,10 +5,14 @@ import ProtectedRoute from '../../utls/Protected_Route/Protected_Route'
 
 function Chats() {
   return (
-      <div className="flex h-screen bg-gray-100">
-      <SideBar />
-      <Chat />
+     <div className="flex h-screen bg-gray-100">
+        <div className="w-72 flex-shrink-0">
+          <SideBar />
+        </div>
+        <Chat />
+
       </div>
+
   )
 }
 
