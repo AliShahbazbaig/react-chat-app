@@ -21,9 +21,11 @@ class UserManager(BaseUserManager):
 
 # User Model
 class User(AbstractBaseUser,PermissionsMixin):
+    image_url=models.CharField(max_length=255,null=True,blank=True)
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=255, blank=True)
     last_name = models.CharField(max_length=255, blank=True)
+    description=models.CharField(max_length=255,null=True,blank=True)
     is_active = models.BooleanField(default=True)
     is_superuser = models.BooleanField(default=False)
 

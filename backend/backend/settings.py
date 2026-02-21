@@ -91,7 +91,7 @@ REST_FRAMEWORK = {
 
 ASGI_APPLICATION ="backend.asgi.application"
 
-CHANNEL_LAYER={
+CHANNEL_LAYERS={
     "default":{
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG":{
@@ -151,3 +151,4 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
