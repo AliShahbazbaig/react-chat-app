@@ -1,29 +1,37 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 function SignUpForm() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [profilePicture, setProfilePicture] = useState("");
+  const [description, setDescription] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({
     email: "",
     first_name: "",
     last_name: "",
+    image_url: "",
+    description: "",
     password: "",
   });
-  const [loading, setLoading] = useState(false); // loading state
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setErrors({ email: "", first_name: "", last_name: "", password: "" });
-    setLoading(true); // start loading
+    setErrors({ email: "", first_name: "", last_name: "", description: "", image_url: "", password: "" });
+    setLoading(true);
 
     const userData = {
-      email: email,
+      email,
       first_name: firstName,
       last_name: lastName,
-      password: password,
+      image_url: profilePicture,
+      description,
+      password,
     };
 
     axios
@@ -31,9 +39,9 @@ function SignUpForm() {
         headers: { "Content-Type": "application/json" },
       })
       .then((response) => {
-        console.log("User registered successfully:", response.data);
-        localStorage.setItem("token", response.data.token);
-        // optional: redirect to login page
+        document.cookie = `token=${response.data.token}; path=/`;
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+        navigate("/chats");
       })
       .catch((error) => {
         if (error.response && error.response.data) {
@@ -44,26 +52,28 @@ function SignUpForm() {
             last_name: data.last_name ? data.last_name[0] : "",
             password: data.password ? data.password[0] : "",
           });
-        } else {
-          console.error("Error registering user:", error);
         }
       })
-      .finally(() => {
-        setLoading(false); // stop loading
-      });
+      .finally(() => setLoading(false));
+  };
+
+  const isValidUrl = (url) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-800">
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col w-full max-w-sm gap-4 p-6 border rounded-xl shadow-md bg-gray-900"
+        className="flex flex-col w-full max-w-md gap-5 p-8 bg-gray-900 border border-gray-700 rounded-2xl shadow-lg"
       >
-        <h1 className="text-white text-2xl font-semibold text-center mb-4">
-          Sign Up
-        </h1>
+        <h1 className="text-white text-3xl font-bold text-center">Sign Up</h1>
 
-        {/* Email */}
         <input
           type="email"
           placeholder="Email"
@@ -73,41 +83,78 @@ function SignUpForm() {
             setErrors((prev) => ({ ...prev, email: "" }));
           }}
           required
-          className="text-white bg-gray-800 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+          className="text-white bg-gray-800 px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition"
         />
-        {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+        {errors.email && <p className="text-red-500 text-sm">{errors.email}</p>}
 
-        {/* First Name */}
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="First Name"
+              value={firstName}
+              onChange={(e) => {
+                setFirstName(e.target.value);
+                setErrors((prev) => ({ ...prev, first_name: "" }));
+              }}
+              className="text-white bg-gray-800 px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 w-full transition"
+            />
+            {errors.first_name && (
+              <p className="text-red-500 text-sm">{errors.first_name}</p>
+            )}
+          </div>
+
+          <div className="flex-1">
+            <input
+              type="text"
+              placeholder="Last Name"
+              value={lastName}
+              onChange={(e) => {
+                setLastName(e.target.value);
+                setErrors((prev) => ({ ...prev, last_name: "" }));
+              }}
+              className="text-white bg-gray-800 px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 w-full transition"
+            />
+            {errors.last_name && (
+              <p className="text-red-500 text-sm">{errors.last_name}</p>
+            )}
+          </div>
+        </div>
+
+        <input
+          type="url"
+          placeholder="Profile Picture URL"
+          value={profilePicture}
+          onChange={(e) => {
+            setProfilePicture(e.target.value);
+            setErrors((prev) => ({ ...prev, image_url: "" }));
+          }}
+          className="text-white bg-gray-800 px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition"
+        />
+        {profilePicture && isValidUrl(profilePicture) && (
+          <div className="flex justify-center mt-2">
+            <img
+              src={profilePicture}
+              alt="Profile Preview"
+              className="w-32 h-32 rounded-full border-2 border-gray-600 object-cover"
+              onError={() => setErrors((prev) => ({ ...prev, image_url: "Invalid URL" }))}
+            />
+          </div>
+        )}
+        {errors.image_url && <p className="text-red-500 text-sm">{errors.image_url}</p>}
+
         <input
           type="text"
-          placeholder="First Name"
-          value={firstName}
+          placeholder="Description"
+          value={description}
           onChange={(e) => {
-            setFirstName(e.target.value);
-            setErrors((prev) => ({ ...prev, first_name: "" }));
+            setDescription(e.target.value);
+            setErrors((prev) => ({ ...prev, description: "" }));
           }}
-          className="text-white bg-gray-800 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+          className="text-white bg-gray-800 px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition"
         />
-        {errors.first_name && (
-          <p className="text-red-500 text-sm mt-1">{errors.first_name}</p>
-        )}
+        {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
 
-        {/* Last Name */}
-        <input
-          type="text"
-          placeholder="Last Name"
-          value={lastName}
-          onChange={(e) => {
-            setLastName(e.target.value);
-            setErrors((prev) => ({ ...prev, last_name: "" }));
-          }}
-          className="text-white bg-gray-800 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
-        />
-        {errors.last_name && (
-          <p className="text-red-500 text-sm mt-1">{errors.last_name}</p>
-        )}
-
-        {/* Password */}
         <input
           type="password"
           placeholder="Password"
@@ -117,16 +164,14 @@ function SignUpForm() {
             setErrors((prev) => ({ ...prev, password: "" }));
           }}
           required
-          className="text-white bg-gray-800 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400"
+          className="text-white bg-gray-800 px-4 py-3 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 transition"
         />
-        {errors.password && (
-          <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-        )}
+        {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
 
         <button
           type="submit"
-          disabled={loading} // disable button while loading
-          className={`bg-blue-600 text-white py-2 rounded-md mt-2 transition hover:bg-blue-700 flex justify-center items-center ${
+          disabled={loading}
+          className={`bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold mt-2 transition flex justify-center items-center ${
             loading ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >

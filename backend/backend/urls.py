@@ -1,12 +1,16 @@
 from django.contrib import admin
 from django.urls import path , include
-from accounts.views import login,register_user
+from accounts.views import login,register_user,UserDetailView
 from chats import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/register/',register_user,name='register'),
     path('api/login/', login, name='login'),
+    path('api/profile/',UserDetailView.as_view(),name='profile'),
+    path('api/profile/update/',UserDetailView.as_view(),name='update-profile'),
+    path('api/profile/delete/',UserDetailView.as_view(),name='delete-profile'),
+    
 
     #Users
     path('api/user/', views.get_current_user, name='current-user'),

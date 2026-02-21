@@ -10,20 +10,20 @@ function LoginForm() {
     password: '',
     non_field_errors: ''
   });
-  const [loading, setLoading] = useState(false); // loading state
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     setErrors({ email: '', password: '', non_field_errors: '' });
-    setLoading(true); // start loading
+    setLoading(true);
 
     const loginData = {
       email: email,
       password: password
     };
 
-    axios.post('http://localhost:8000/api/login/', loginData, {
+    axios.post('http://127.0.0.1:8000/api/login/', loginData, {
       headers: { 'Content-Type': 'application/json' }
     })
     .then(response => {
@@ -44,7 +44,7 @@ function LoginForm() {
       }
     })
     .finally(() => {
-      setLoading(false); // stop loading
+      setLoading(false);
     });
   };
 
